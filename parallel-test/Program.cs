@@ -16,13 +16,40 @@ namespace parallel_test
             public Func<int, IEnumerable<int>> Execute;
             public IEnumerable<int> Result = null;
             public decimal Qty = 0;
+            private static string _header = $"| {"Name".PadRight(40)} | {"Average (msg/ms)".PadRight(20)} | {"Elapsed (ms)".PadRight(20)} | {"Count (qty)".PadRight(20)} | {"Expected (qty)".PadRight(20)} | {"Assert".PadRight(20)} |";
 
             public decimal Average => Math.Round(Qty/ElapsedTime, 4);
+
+            public static void MakeHeader()
+            {
+                            
+                Console.WriteLine("".PadRight(_header.Length, '-'));
+                Console.WriteLine(_header);
+                Console.WriteLine("".PadRight(_header.Length, '-'));                
+                
+            }
+            
+            public static void MakeFooter()
+            {
+                Console.WriteLine("".PadRight(_header.Length, '-'));   
+            }
+
+            public void WriteLine()
+            {
+                Console.ForegroundColor = Assert ? ConsoleColor.White : ConsoleColor.Red;
+                Console.WriteLine(this.ToString());                
+            }
+
+            public override string ToString()
+            {
+                return
+                    $"| {Execute.Method.Name.PadRight(40)} | {Average.ToString().PadRight(20)} | {ElapsedTime.ToString().PadRight(20)} | {Result.Count().ToString().PadRight(20)} | {Qty.ToString().PadRight(20)} | {Assert.ToString().PadRight(20)} |";
+            }
         }
         
         static void Main(string[] args)
         {
-            const int start = 10000;
+            const int start = 100000;
             const int times = 6;
 
             var results = new List<TestResult>();
@@ -63,19 +90,15 @@ namespace parallel_test
                 qty *= 10;
             }
             
+            TestResult.MakeHeader();
 
             // Show results
-            var header =
-                $"| {"Name".PadRight(40)} | {"Average (msg/ms)".PadRight(20)} | {"Elapsed (ms)".PadRight(20)} | {"Count (qty)".PadRight(20)} | {"Expected (qty)".PadRight(20)} | {"Assert".PadRight(20)} |";            
-            Console.WriteLine("\n".PadRight(header.Length, '-'));
-            Console.WriteLine(header);
-            Console.WriteLine("".PadRight(header.Length, '-'));
             foreach (var line in results.OrderBy(p => p.Average))
             {
-                Console.ForegroundColor = line.Assert ? ConsoleColor.White : ConsoleColor.Red;
-                Console.WriteLine($"| {line.Execute.Method.Name.PadRight(40)} | {line.Average.ToString().PadRight(20)} | {line.ElapsedTime.ToString().PadRight(20)} | {line.Result.Count().ToString().PadRight(20)} | {line.Qty.ToString().PadRight(20)} | {line.Assert.ToString().PadRight(20)} |");
+                line.WriteLine();
             }
-            Console.WriteLine("".PadRight(header.Length, '-'));
+            
+            TestResult.MakeFooter();
         }
 
         static int CalcIntValue(int seed)
