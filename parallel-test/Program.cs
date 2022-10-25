@@ -15,12 +15,12 @@ namespace parallel_test
         {
             public bool Assert = true;
             public long ElapsedTime = 0;
-            public Func<int, IEnumerable<int>> Execute;
-            public IEnumerable<int> Result = null;
+            public Func<int, int> Execute;
+            public int Result = 0;
             public decimal Qty = 0;
             private static string _header = $"| {"Name".PadRight(40)} | {"Average (msg/ms)".PadRight(20)} | {"Elapsed (ms)".PadRight(20)} | {"Count (qty)".PadRight(20)} | {"Expected (qty)".PadRight(20)} | {"Assert".PadRight(20)} |";
 
-            public decimal Average => Math.Round((decimal)Result.Count()/Math.Max(ElapsedTime, 1) , 0);
+            public decimal Average => Math.Round((decimal)Result/Math.Max(ElapsedTime, 1) , 0);
 
             public static void MakeHeader()
             {
@@ -43,18 +43,18 @@ namespace parallel_test
 
             public override string ToString()
             {
-                return $"| {Execute.Method.Name.PadRight(40)} | {Average.ToString().PadRight(20)} | {ElapsedTime.ToString().PadRight(20)} | {Result.Count().ToString().PadRight(20)} | {Qty.ToString().PadRight(20)} | {Assert.ToString().PadRight(20)} |";
+                return $"| {Execute.Method.Name.PadRight(40)} | {Average.ToString().PadRight(20)} | {ElapsedTime.ToString().PadRight(20)} | {Result.ToString().PadRight(20)} | {Qty.ToString().PadRight(20)} | {Assert.ToString().PadRight(20)} |";
             }
         }
         
         static void Main(string[] args)
         {
-            const int start = 100000;
+            const int start = 500000;
             const int times = 5;
 
             var results = new List<TestResult>();
 
-            var actions = new List<Func<int, IEnumerable<int>>>()
+            var actions = new List<Func<int, int>>()
             {
                 SeqInsert,
                 SeqPreAllocInsert, 
@@ -69,10 +69,10 @@ namespace parallel_test
 
             for (var i = 0; i < times; i++)
             {
-                Console.Write($"\n[{DateTime.Now}] ## Testing for {qty} items");
+                Console.Write($"\n\n### Testing for {qty} items");
                 foreach (var action in actions)
                 {
-                    StartProgressBar(action);
+                    StartProgressBar(action.Method.Name, qty);
 
                     var sw = Stopwatch.StartNew();
                     var actionResult = action(qty);
@@ -80,7 +80,7 @@ namespace parallel_test
                     
                     results.Add(new TestResult()
                     {
-                        Assert = actionResult.Count() == qty,
+                        Assert = actionResult == qty,
                         Execute = action,
                         Qty = qty,
                         Result = actionResult,
@@ -88,6 +88,7 @@ namespace parallel_test
                     });
                     
                     FinishProgressBar();
+                    GC.Collect();
                 }
                 qty *= 10;
             }
@@ -106,22 +107,29 @@ namespace parallel_test
         private static void FinishProgressBar()
         {
             Console.CursorLeft = _progressStart - 2;
-            Console.Write(string.Empty.PadRight(_progessSize + 10, ' '));
+            Console.Write(string.Empty.PadRight(_progressSize + 10, ' '));
         }
 
-        private static void StartProgressBar(Func<int, IEnumerable<int>> action)
+        private static void StartProgressBar(string name, int qty)
         {
-            Console.Write($"\n[{DateTime.Now}] [{action.Method.Name}] Running ");
+            var msg = $"[{DateTime.Now}] [{name}] Running "; 
+            Console.Write($"\n{msg}");
+            
+            _progressStart = msg.Length + 10;
+            _progressSize = _progressStart + 80;
+            _progressInterval = qty / 160;
+            _progressBar = '#';
+            
             Console.CursorLeft = _progressStart - 1;
             Console.Write('[');
-            Console.CursorLeft = _progessSize + 1;
+            Console.CursorLeft = _progressSize + 1;
             Console.Write(']');
             Console.CursorLeft = _progressStart;
         }
 
         private static char _progressBar = '#';
-        private static int _progessSize = 140;
-        private static int _progressStart = 70;
+        private static int _progressSize = 160;
+        private static int _progressStart = 80;
         private static int _progressInterval = 1000000;
         
         static int CalcIntValue(int seed)
@@ -131,7 +139,7 @@ namespace parallel_test
             {
                 Console.Write(_progressBar);
 
-                if (Console.CursorLeft > _progessSize)
+                if (Console.CursorLeft > _progressSize)
                 {
                     Console.CursorLeft += 1;
                     Console.Write($" {seed}");
@@ -151,7 +159,7 @@ namespace parallel_test
             return int.MaxValue / seed.GetHashCode().ToString().ToCharArray().Sum(c => (int)c);
         }
 
-        static IEnumerable<int> SeqInsert(int qty)
+        static int SeqInsert(int qty)
         {
             var ret = new List<int>();
             for (var i = 0; i < qty; i++)
@@ -159,10 +167,10 @@ namespace parallel_test
                 ret.Add(CalcIntValue(i));
             }
             
-            return ret;
+            return ret.Count();
         }
         
-        static IEnumerable<int> SeqPreAllocInsert(int qty)
+        static int SeqPreAllocInsert(int qty)
         {
             var ret = new int[qty];
             for (var i = 0; i < qty; i++)
@@ -170,10 +178,10 @@ namespace parallel_test
                 ret[i] = CalcIntValue(i);
             }
 
-            return ret;
+            return ret.Count();
         }
         
-        static IEnumerable<int> ParallelPreAllocInsert(int qty)
+        static int ParallelPreAllocInsert(int qty)
         {
             var ret = new int[qty];
             For (0, qty, i =>
@@ -181,10 +189,10 @@ namespace parallel_test
                 ret[i] = CalcIntValue(i);
             });
 
-            return ret;
+            return ret.Count();
         }          
         
-        static IEnumerable<int> ParallelUnsafeInsert(int qty)
+        static int ParallelUnsafeInsert(int qty)
         {
             var ret = new List<int>(qty);
             For(0, qty, i =>
@@ -193,10 +201,10 @@ namespace parallel_test
                 
             });
 
-            return ret;
+            return ret.Count();
         }        
         
-        static IEnumerable<int> ParallelLockInsert(int qty)
+        static int ParallelLockInsert(int qty)
         {
             var ret = new List<int>(qty);
 
@@ -208,16 +216,16 @@ namespace parallel_test
                 }
             });
 
-            return ret;
+            return ret.Count();
         }
         
-        static IEnumerable<int> ParallelThreadSafeInsert(int qty)
+        static int ParallelThreadSafeInsert(int qty)
         {
             var ret = new ConcurrentBag<int>();
 
             For(0, qty, i => ret.Add(CalcIntValue(i)));
 
-            return ret;
+            return ret.Count();
         }         
     }
 }
