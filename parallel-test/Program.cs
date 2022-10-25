@@ -24,12 +24,10 @@ namespace parallel_test
 
             public static void MakeHeader()
             {
-                            
                 Console.WriteLine("\n");
                 Console.WriteLine("".PadRight(_header.Length, '-'));
                 Console.WriteLine(_header);
-                Console.WriteLine("".PadRight(_header.Length, '-'));                
-                
+                Console.WriteLine("".PadRight(_header.Length, '-'));                                
             }
             
             public static void MakeFooter()
@@ -45,8 +43,7 @@ namespace parallel_test
 
             public override string ToString()
             {
-                return
-                    $"| {Execute.Method.Name.PadRight(40)} | {Average.ToString().PadRight(20)} | {ElapsedTime.ToString().PadRight(20)} | {Result.Count().ToString().PadRight(20)} | {Qty.ToString().PadRight(20)} | {Assert.ToString().PadRight(20)} |";
+                return $"| {Execute.Method.Name.PadRight(40)} | {Average.ToString().PadRight(20)} | {ElapsedTime.ToString().PadRight(20)} | {Result.Count().ToString().PadRight(20)} | {Qty.ToString().PadRight(20)} | {Assert.ToString().PadRight(20)} |";
             }
         }
         
@@ -130,7 +127,6 @@ namespace parallel_test
         static int CalcIntValue(int seed)
         {
             // Just to process something and simulate CPU use
-            
             if (seed % _progressInterval == 0)
             {
                 Console.Write(_progressBar);
@@ -151,8 +147,7 @@ namespace parallel_test
                     }
                 }
             }
-
-
+            
             return int.MaxValue / seed.GetHashCode().ToString().ToCharArray().Sum(c => (int)c);
         }
 
@@ -164,7 +159,6 @@ namespace parallel_test
                 ret.Add(CalcIntValue(i));
             }
             
-
             return ret;
         }
         
@@ -193,7 +187,6 @@ namespace parallel_test
         static IEnumerable<int> ParallelUnsafeInsert(int qty)
         {
             var ret = new List<int>(qty);
-
             For(0, qty, i =>
             {
                 ret.Add(CalcIntValue(i));
