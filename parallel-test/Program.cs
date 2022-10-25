@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static System.Threading.Tasks.Parallel;
 
 namespace parallel_test
@@ -18,11 +20,12 @@ namespace parallel_test
             public decimal Qty = 0;
             private static string _header = $"| {"Name".PadRight(40)} | {"Average (msg/ms)".PadRight(20)} | {"Elapsed (ms)".PadRight(20)} | {"Count (qty)".PadRight(20)} | {"Expected (qty)".PadRight(20)} | {"Assert".PadRight(20)} |";
 
-            public decimal Average => Math.Round(Qty/ElapsedTime, 4);
+            public decimal Average => Math.Round((decimal)Result.Count()/Math.Max(ElapsedTime, 1) , 0);
 
             public static void MakeHeader()
             {
                             
+                Console.WriteLine("\n");
                 Console.WriteLine("".PadRight(_header.Length, '-'));
                 Console.WriteLine(_header);
                 Console.WriteLine("".PadRight(_header.Length, '-'));                
@@ -50,7 +53,7 @@ namespace parallel_test
         static void Main(string[] args)
         {
             const int start = 100000;
-            const int times = 6;
+            const int times = 5;
 
             var results = new List<TestResult>();
 
@@ -64,28 +67,30 @@ namespace parallel_test
                 ParallelPreAllocInsert,
             };
             
-            
             // Execute tests
             var qty = start;
+
             for (var i = 0; i < times; i++)
             {
-                Console.WriteLine($"[{DateTime.Now}] ## Testing for {qty} items...");
+                Console.Write($"\n[{DateTime.Now}] ## Testing for {qty} items");
                 foreach (var action in actions)
                 {
-                    Console.WriteLine($"[{DateTime.Now}] [{action.Method.Name}] Running...");
-                    
+                    StartProgressBar(action);
+
                     var sw = Stopwatch.StartNew();
-                    var result = action(qty);
+                    var actionResult = action(qty);
                     sw.Stop();
                     
                     results.Add(new TestResult()
                     {
-                        Assert = result.Count() == qty,
+                        Assert = actionResult.Count() == qty,
                         Execute = action,
                         Qty = qty,
-                        Result = result,
+                        Result = actionResult,
                         ElapsedTime = sw.ElapsedMilliseconds
                     });
+                    
+                    FinishProgressBar();
                 }
                 qty *= 10;
             }
@@ -101,9 +106,53 @@ namespace parallel_test
             TestResult.MakeFooter();
         }
 
+        private static void FinishProgressBar()
+        {
+            Console.CursorLeft = _progressStart - 2;
+            Console.Write(string.Empty.PadRight(_progessSize + 10, ' '));
+        }
+
+        private static void StartProgressBar(Func<int, IEnumerable<int>> action)
+        {
+            Console.Write($"\n[{DateTime.Now}] [{action.Method.Name}] Running ");
+            Console.CursorLeft = _progressStart - 1;
+            Console.Write('[');
+            Console.CursorLeft = _progessSize + 1;
+            Console.Write(']');
+            Console.CursorLeft = _progressStart;
+        }
+
+        private static char _progressBar = '#';
+        private static int _progessSize = 140;
+        private static int _progressStart = 70;
+        private static int _progressInterval = 1000000;
+        
         static int CalcIntValue(int seed)
         {
-            // Just to process something
+            // Just to process something and simulate CPU use
+            
+            if (seed % _progressInterval == 0)
+            {
+                Console.Write(_progressBar);
+
+                if (Console.CursorLeft > _progessSize)
+                {
+                    Console.CursorLeft += 1;
+                    Console.Write($" {seed}");
+                    Console.CursorLeft = _progressStart;
+                    
+                    if (_progressBar == '>')
+                    {
+                        _progressBar = '#';
+                    }
+                    else
+                    {
+                        _progressBar = '>';
+                    }
+                }
+            }
+
+
             return int.MaxValue / seed.GetHashCode().ToString().ToCharArray().Sum(c => (int)c);
         }
 
