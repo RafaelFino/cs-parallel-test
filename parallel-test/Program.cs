@@ -3,17 +3,62 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using static System.Threading.Tasks.Parallel;
 
 namespace parallel_test
 {
-    class Program
+    static class Program
     {
+        static void Main(string[] args)
+        {
+            var results = new List<TestResult>();
+            var actions = new List<Func<int, int>>()
+            {
+                SeqInsert,
+                SeqPreAllocInsert, 
+                ParallelUnsafeInsert,
+                ParallelLockInsert,
+                ParallelThreadSafeInsert,
+                ParallelPreAllocInsert,
+            };
+            
+            // Execute tests
+            var qty = 500000;
+            const int times = 5;
+
+            for (var i = 0; i < times; i++)
+            {
+                Console.Write($"\n\n### Testing for {qty} items");
+                foreach (var action in actions)
+                {
+                    StartProgressBar(action.Method.Name, qty);
+
+                    var sw = Stopwatch.StartNew();
+                    var actionResult = action(qty);
+                    sw.Stop();
+                    
+                    results.Add(new TestResult()
+                    {
+                        Execute = action,
+                        Qty = qty,
+                        Result = actionResult,
+                        ElapsedTime = sw.ElapsedMilliseconds
+                    });
+                    
+                    FinishProgressBar();
+                    GC.Collect();
+                }
+                qty *= 10;
+            }
+            
+            // Show results
+            results.MakeTable();
+        }
+        
+        #region TestObject
         private class TestResult
         {
-            public bool Assert = true;
+            public bool Assert => Result == Qty;
             public long ElapsedTime = 0;
             public Func<int, int> Execute;
             public int Result = 0;
@@ -25,6 +70,7 @@ namespace parallel_test
             public static void MakeHeader()
             {
                 Console.WriteLine("\n");
+                Console.ForegroundColor = ConsoleColor.White; 
                 Console.WriteLine("".PadRight(_header.Length, '-'));
                 Console.WriteLine(_header);
                 Console.WriteLine("".PadRight(_header.Length, '-'));                                
@@ -47,52 +93,8 @@ namespace parallel_test
             }
         }
         
-        static void Main(string[] args)
+        static void MakeTable(this IList<TestResult> results)
         {
-            const int start = 500000;
-            const int times = 5;
-
-            var results = new List<TestResult>();
-
-            var actions = new List<Func<int, int>>()
-            {
-                SeqInsert,
-                SeqPreAllocInsert, 
-                ParallelUnsafeInsert,
-                ParallelLockInsert,
-                ParallelThreadSafeInsert,
-                ParallelPreAllocInsert,
-            };
-            
-            // Execute tests
-            var qty = start;
-
-            for (var i = 0; i < times; i++)
-            {
-                Console.Write($"\n\n### Testing for {qty} items");
-                foreach (var action in actions)
-                {
-                    StartProgressBar(action.Method.Name, qty);
-
-                    var sw = Stopwatch.StartNew();
-                    var actionResult = action(qty);
-                    sw.Stop();
-                    
-                    results.Add(new TestResult()
-                    {
-                        Assert = actionResult == qty,
-                        Execute = action,
-                        Qty = qty,
-                        Result = actionResult,
-                        ElapsedTime = sw.ElapsedMilliseconds
-                    });
-                    
-                    FinishProgressBar();
-                    GC.Collect();
-                }
-                qty *= 10;
-            }
-            
             TestResult.MakeHeader();
 
             // Show results
@@ -101,14 +103,15 @@ namespace parallel_test
                 line.WriteLine();
             }
             
-            TestResult.MakeFooter();
+            TestResult.MakeFooter();            
         }
-
-        private static void FinishProgressBar()
-        {
-            Console.CursorLeft = _progressStart - 2;
-            Console.Write(string.Empty.PadRight(_progressSize + 10, ' '));
-        }
+        #endregion
+        
+        #region Progress Bar 
+        private static char _progressBar = '#';
+        private static int _progressSize = 160;
+        private static int _progressStart = 80;
+        private static int _progressInterval = 1000000;        
 
         private static void StartProgressBar(string name, int qty)
         {
@@ -127,11 +130,14 @@ namespace parallel_test
             Console.CursorLeft = _progressStart;
         }
 
-        private static char _progressBar = '#';
-        private static int _progressSize = 160;
-        private static int _progressStart = 80;
-        private static int _progressInterval = 1000000;
-        
+        private static void FinishProgressBar()
+        {
+            Console.CursorLeft = _progressStart - 2;
+            Console.Write(string.Empty.PadRight(_progressSize + 10, ' '));
+        }
+        #endregion
+
+        #region CPU Method test
         static int CalcIntValue(int seed)
         {
             // Just to process something and simulate CPU use
@@ -158,7 +164,9 @@ namespace parallel_test
             
             return int.MaxValue / seed.GetHashCode().ToString().ToCharArray().Sum(c => (int)c);
         }
+        #endregion
 
+        #region Tests 
         static int SeqInsert(int qty)
         {
             var ret = new List<int>();
@@ -226,6 +234,7 @@ namespace parallel_test
             For(0, qty, i => ret.Add(CalcIntValue(i)));
 
             return ret.Count();
-        }         
+        }
+        #endregion
     }
 }
